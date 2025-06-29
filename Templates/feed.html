@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Webcam Feed</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    header {
+      margin-bottom: 20px;
+    }
+    a.logout {
+      color: #d33;
+      text-decoration: none;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    img#video-feed {
+      border: 3px solid #333;
+      border-radius: 8px;
+      max-width: 90vw;
+      height: auto;
+    }
+    #log {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+      background: #222;
+      color: #0f0;
+      font-family: monospace;
+      padding: 10px;
+      border-radius: 5px;
+      height: 150px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Live Webcam Feed</h1>
+    <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+  </header>
+
+  <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Webcam feed" />
+
+  <section id="log">
+    <strong>Console logs:</strong><br />
+    <div id="console-output">Starting logs...</div>
+  </section>
+
+  <script>
+    // Simple console logger to page
+    function logToPage(msg) {
+      const logDiv = document.getElementById('console-output');
+      logDiv.textContent += msg + '\n';
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    logToPage("Page loaded - testing Switch browser sandbox...");
+
+    try {
+      // Test if WebUSB API is available
+      if ('usb' in navigator) {
+        logToPage("WebUSB API available.");
+      } else {
+        logToPage("WebUSB API NOT available.");
+      }
+
+      // Try a simple fetch request to the root
+      fetch('/')
+        .then(response => {
+          logToPage("Fetch to '/' succeeded with status: " + response.status);
+        })
+        .catch(error => {
+          logToPage("Fetch to '/' failed: " + error);
+        });
+
+      // Test if cookies are enabled
+      if (navigator.cookieEnabled) {
+        logToPage("Cookies are enabled.");
+      } else {
+        logToPage("Cookies are NOT enabled.");
+      }
+    } catch (e) {
+      logToPage("Error during sandbox tests: " + e.message);
+    }
+  </script>
+</body>
+</html>

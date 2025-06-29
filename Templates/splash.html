@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HEXDEC1A4 Splash</title>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2&display=swap" rel="stylesheet" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      color: white;
+      font-family: 'Baloo 2', cursive;
+      user-select: none;
+      position: relative;
+    }
+    #splashContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    .letter {
+      position: absolute;
+      font-weight: 700;
+      font-size: 6vw;
+      opacity: 0;
+      animation: flyIn 2s forwards, rainbowPulse 4s infinite linear;
+      width: 3.5vw;
+      text-align: center;
+      transform-origin: center center;
+      user-select: none;
+    }
+    @keyframes flyIn {
+      0% {
+        opacity: 0;
+        transform: translate(var(--startX), var(--startY)) scale(0.3);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+      }
+    }
+    @keyframes rainbowPulse {
+      0%   { color: hsl(0, 100%, 70%); }
+      20%  { color: hsl(72, 100%, 70%); }
+      40%  { color: hsl(144, 100%, 70%); }
+      60%  { color: hsl(216, 100%, 70%); }
+      80%  { color: hsl(288, 100%, 70%); }
+      100% { color: hsl(360, 100%, 70%); }
+    }
+    .rainbowText {
+      position: fixed;
+      top: 5px;
+      font-size: 1.2rem;
+      color: hsl(0, 100%, 70%);
+      animation: rainbowPulse 4s infinite linear;
+      user-select: none;
+      cursor: default;
+      padding: 0 10px;
+      white-space: nowrap;
+    }
+    #leftText {
+      left: 5px;
+    }
+    #rightText {
+      right: 5px;
+    }
+    .bold {
+      font-weight: 900 !important;
+    }
+    #keyDebug {
+      position: fixed;
+      bottom: 5px;
+      left: 5px;
+      right: 5px;
+      max-height: 120px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid white;
+      font-size: 0.8rem;
+      padding: 5px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      display: none;
+      user-select: text;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+  <div id="splashContainer"></div>
+
+  <div id="leftText" class="rainbowText">Press LEFT (D-pad) to load switch.html</div>
+  <div id="rightText" class="rainbowText">Press RIGHT (D-pad) to reload splash.html</div>
+
+  <pre id="keyDebug">Press UP + Enter (A) to toggle debug console.</pre>
+
+  <script>
+    const container = document.getElementById('splashContainer');
+    const text = 'HEXDEC1A4';
+
+    function createLetters() {
+      container.innerHTML = '';
+
+      const spacing = window.innerWidth * 0.06; // spacing in px based on viewport width (adjust if needed)
+      const totalWidth = spacing * text.length;
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+
+      text.split('').forEach((char, i) => {
+        const letter = document.createElement('div');
+        letter.className = 'letter';
+        letter.textContent = char;
+
+        // Calculate final position for each letter centered horizontally
+        // Letters are positioned absolutely relative to container (which is full viewport)
+        const finalX = centerX - totalWidth / 2 + i * spacing;
+        const finalY = centerY;
+
+        // Random start positions offscreen (relative to final position)
+        const startX = (Math.random() > 0.5 ? -1 : 1) * (Math.random() * window.innerWidth + 200);
+        const startY = (Math.random() > 0.5 ? -1 : 1) * (Math.random() * window.innerHeight + 200);
+
+        letter.style.left = `${finalX}px`;
+        letter.style.top = `${finalY}px`;
+
+        letter.style.setProperty('--startX', `${startX}px`);
+        letter.style.setProperty('--startY', `${startY}px`);
+        letter.style.setProperty('--finalX', `0px`);
+        letter.style.setProperty('--finalY', `0px`);
+
+        container.appendChild(letter);
+      });
+    }
+    createLetters();
+
+    const leftText = document.getElementById('leftText');
+    const rightText = document.getElementById('rightText');
+    const keyDebug = document.getElementById('keyDebug');
+
+    let keysDown = new Set();
+    let debugVisible = false;
+
+    function resetState() {
+      keysDown.clear();
+      keyDebug.style.display = 'none';
+      leftText.classList.remove('bold');
+      rightText.classList.remove('bold');
+      debugVisible = false;
+      keyDebug.textContent = 'Press UP + Enter (A) to toggle debug console.';
+    }
+
+    window.addEventListener('load', () => {
+      resetState();
+      // Auto-load switch.html after 4 seconds
+      setTimeout(() => {
+        window.location.href = '/switch';
+      }, 4000);
+    });
+
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) { // Restore from bfcache
+        resetState();
+        createLetters();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      keysDown.add(e.code);
+
+      // Toggle debug console with UP + Enter
+      if (keysDown.has('ArrowUp') && keysDown.has('Enter')) {
+        debugVisible = !debugVisible;
+        keyDebug.style.display = debugVisible ? 'block' : 'none';
+        if (debugVisible) {
+          keyDebug.textContent = 'Debug console toggled ON.\nPress LEFT or RIGHT (D-pad) to test bold and navigation.';
+        } else {
+          leftText.classList.remove('bold');
+          rightText.classList.remove('bold');
+          keyDebug.textContent = 'Press UP + Enter (A) to toggle debug console.';
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // Navigation keys: always active regardless of debug console state
+      if (e.code === 'ArrowLeft') {
+        leftText.classList.add('bold');
+        if (debugVisible) {
+          keyDebug.textContent += `\nLEFT D-pad pressed -> loading switch.html...`;
+          keyDebug.scrollTop = keyDebug.scrollHeight;
+        }
+        window.location.href = '/switch';
+      }
+
+      if (e.code === 'ArrowRight') {
+        rightText.classList.add('bold');
+        if (debugVisible) {
+          keyDebug.textContent += `\nRIGHT D-pad pressed -> reloading splash.html...`;
+          keyDebug.scrollTop = keyDebug.scrollHeight;
+        }
+        window.location.reload();
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      keysDown.delete(e.code);
+      if (e.code === 'ArrowLeft') leftText.classList.remove('bold');
+      if (e.code === 'ArrowRight') rightText.classList.remove('bold');
+    });
+  </script>
+</body>
+</html>

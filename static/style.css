@@ -1,0 +1,19 @@
+body {
+  background: #f2f2f2;
+  font-family: Arial;
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  align-items: center;
+}
+.login-container {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+input, button {
+  margin: 10px 0;
+  padding: 10px;
+  width: 100%;
+}

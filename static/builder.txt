@@ -1,0 +1,33 @@
+// static/switch_tests.js
+
+const tests = {
+  testWebUSB: async () => {
+    log("Running WebUSB test...");
+    if ('usb' in navigator) {
+      log("WebUSB API available.");
+    } else {
+      log("WebUSB API NOT available.");
+    }
+  },
+  testFetchRoot: async () => {
+    log("Running fetch('/') test...");
+    try {
+      const response = await fetch('/');
+      log(`Fetch to '/' succeeded with status: ${response.status}`);
+    } catch (e) {
+      log("Fetch to '/' failed: " + e.message);
+    }
+  },
+  testCookies: async () => {
+    log("Checking cookies...");
+    if (navigator.cookieEnabled) {
+      log("Cookies are enabled.");
+    } else {
+      log("Cookies are NOT enabled.");
+    }
+  },
+  testCustomScript: async () => {
+    log("Running custom test script...");
+    // Add your custom tests here
+  }
+};

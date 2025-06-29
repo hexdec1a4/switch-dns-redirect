@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Computer Side</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    body { font-family: monospace; background: #222; color: #eee; padding: 1em; }
+    #status { margin-bottom: 1em; font-weight: bold; }
+    textarea { width: 100%; height: 100px; background: #111; color: #0f0; border: none; padding: 0.5em; font-family: monospace; }
+    #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 0.5em; height: 300px; overflow-y: scroll; border: 1px solid #0f0; }
+    button { margin-top: 0.5em; padding: 0.5em 1em; font-size: 1em; cursor: pointer; }
+    #connectBtn.connected { background: green; color: black; }
+    #connectBtn.disconnected { background: red; color: white; }
+  </style>
+</head>
+<body>
+
+  <div id="status">Switch status: <span id="connectionStatus">Disconnected</span></div>
+  <button id="connectBtn" class="disconnected">Connect to Switch</button>
+  <br/>
+
+  <textarea id="scriptInput" placeholder="Write script to send to Switch here..."></textarea>
+  <br/>
+  <button id="sendScriptBtn">Send Script to Switch</button>
+  <button id="clearLogBtn">Clear Log</button>
+
+  <h3>Switch Log:</h3>
+  <div id="log">Loading logs...</div>
+
+  <script>
+    let socket;
+    const statusEl = document.getElementById('connectionStatus');
+    const connectBtn = document.getElementById('connectBtn');
+    const sendScriptBtn = document.getElementById('sendScriptBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const logDiv = document.getElementById('log');
+    const scriptInput = document.getElementById('scriptInput');
+
+    let connected = false;
+
+    function updateStatus(isConnected) {
+      connected = isConnected;
+      if (connected) {
+        statusEl.textContent = 'Connected';
+        connectBtn.classList.remove('disconnected');
+        connectBtn.classList.add('connected');
+      } else {
+        statusEl.textContent = 'Disconnected';
+        connectBtn.classList.remove('connected');
+        connectBtn.classList.add('disconnected');
+      }
+    }
+
+    function connectToSwitch() {
+      if (socket && connected) {
+        socket.disconnect();
+        updateStatus(false);
+        return;
+      }
+
+      socket = io({
+        transports: ['polling']
+      });
+
+      socket.on('connect', () => {
+        updateStatus(true);
+        fetchLogs();
+      });
+
+      socket.on('disconnect', () => {
+        updateStatus(false);
+      });
+
+      socket.on('server_message', data => {
+        appendLog("[Switch]: " + data.msg);
+      });
+
+      socket.on('switch_log', data => {
+        appendLog(data.msg);
+      });
+    }
+
+    connectBtn.addEventListener('click', connectToSwitch);
+
+    sendScriptBtn.addEventListener('click', () => {
+      if (!connected) {
+        alert('Not connected to Switch!');
+        return;
+      }
+      const script = scriptInput.value;
+      fetch('/run-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script })
+      }).then(res => res.json()).then(data => {
+        appendLog("[Computer] Script sent.");
+      });
+    });
+
+    clearLogBtn.addEventListener('click', () => {
+      fetch('/clear-log', { method: 'POST' }).then(res => res.json()).then(data => {
+        logDiv.textContent = '';
+      });
+    });
+
+    function fetchLogs() {
+      fetch('/view-log').then(res => res.json()).then(data => {
+        logDiv.textContent = data.logs || '';
+        logDiv.scrollTop = logDiv.scrollHeight;
+      });
+    }
+
+    function appendLog(text) {
+      logDiv.textContent += text + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // Auto-refresh logs every 3 seconds
+    setInterval(() => {
+      if (connected) fetchLogs();
+    }, 3000);
+  </script>
+
+</body>
+</html>

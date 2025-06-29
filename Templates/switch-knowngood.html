@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Switch Side Clock</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    html, body {
+      margin: 0; padding: 0; overflow: hidden;
+      background: #111;
+      user-select: none;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #clockCanvas {
+      background: rgba(34, 34, 34, 0.35);
+      border-radius: 50%;
+      box-shadow: 0 0 15px rgba(0,0,0,0.7);
+      z-index: 1;
+      position: relative;
+    }
+
+    #statusText {
+      margin-top: 20px;
+      font-size: 2rem;
+      font-weight: bold;
+      z-index: 1;
+    }
+
+    #connectPrompt {
+      margin-top: 40px;
+      flex-direction: column;
+      align-items: center;
+      display: none;
+      z-index: 1;
+    }
+
+    #connectBtn, #cancelBtn {
+      padding: 15px 40px;
+      font-size: 2rem;
+      border: none;
+      border-radius: 10px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      margin: 10px;
+      transition: background-color 0.3s ease;
+    }
+
+    #connectBtn:hover { background-color: #45a049; }
+    #cancelBtn { background-color: #f44336; }
+    #cancelBtn:hover { background-color: #d32f2f; }
+  </style>
+</head>
+<body>
+
+  <!-- Main UI -->
+  <canvas id="clockCanvas" width="250" height="250"></canvas>
+  <div id="statusText">Socket: Not connected</div>
+  <div id="connectPrompt">
+    <div>Computer wants to connect. Connect?</div>
+    <button id="connectBtn">Connect</button>
+    <button id="cancelBtn">Cancel</button>
+  </div>
+
+<script>
+(() => {
+  // Show clock and status immediately (no splash)
+  document.getElementById('clockCanvas').style.display = 'block';
+  document.getElementById('statusText').style.display = 'block';
+
+  // Load clock.js
+  const script = document.createElement('script');
+  script.src = '/static/clock.js';
+  script.onload = () => {
+    if (window.clockStart) window.clockStart();
+  };
+  document.head.appendChild(script);
+
+  const statusText = document.getElementById('statusText');
+  const connectPrompt = document.getElementById('connectPrompt');
+  const connectBtn = document.getElementById('connectBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+
+  const socket = io({ transports: ['polling'] });
+  let connected = false;
+  let computerReady = false;
+
+  socket.on('connect', () => {
+    connected = true;
+    statusText.textContent = 'Socket: Connected, waiting for computer...';
+    socket.emit('switch_connected');
+  });
+
+  socket.on('disconnect', () => {
+    connected = false;
+    computerReady = false;
+    statusText.textContent = 'Socket: Disconnected';
+    connectPrompt.style.display = 'none';
+  });
+
+  socket.on('computer_ready', () => {
+    if (!connected) return;
+    computerReady = true;
+    statusText.textContent = 'Computer connected. Awaiting your confirmation...';
+    connectPrompt.style.display = 'flex';
+  });
+
+  connectBtn.onclick = () => {
+    socket.emit('switch_confirmed');
+    statusText.textContent = 'Connection confirmed. Ready!';
+    connectPrompt.style.display = 'none';
+    if (window.clockStop) window.clockStop();
+  };
+
+  cancelBtn.onclick = () => {
+    socket.emit('switch_cancelled');
+    statusText.textContent = 'Connection cancelled.';
+    connectPrompt.style.display = 'none';
+  };
+
+  socket.on('run_script', async (data) => {
+    console.log('[Switch] Received script to run.');
+    try {
+      eval(data.script);
+      await fetch('/confirm-load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ success: true, message: 'Script executed successfully' })
+      });
+      socket.emit('switch_confirmed');
+    } catch (e) {
+      console.error('[Switch] Script execution error:', e);
+      await fetch('/confirm-load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ success: false, message: e.message })
+      });
+      socket.emit('switch_cancelled');
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

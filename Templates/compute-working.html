@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Computer Side</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    body { font-family: monospace; background: #222; color: #eee; padding: 1em; }
+    #status { margin-bottom: 1em; font-weight: bold; }
+    textarea { width: 100%; height: 100px; background: #111; color: #0f0; border: none; padding: 0.5em; font-family: monospace; }
+    #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 0.5em; height: 300px; overflow-y: scroll; border: 1px solid #0f0; }
+    button { margin-top: 0.5em; padding: 0.5em 1em; font-size: 1em; cursor: pointer; }
+    #connectBtn.connected { background: green; color: black; }
+    #connectBtn.disconnected { background: red; color: white; }
+    select { width: 100%; padding: 0.5em; background: #111; color: #0f0; border: 1px solid #0f0; margin-bottom: 1em; }
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+  <div id="status">Switch status: <span id="connectionStatus">Disconnected</span></div>
+  <button id="connectBtn" class="disconnected">Connect to Switch</button>
+
+  <h3>Available Game Scripts:</h3>
+  <select id="gameSelect">
+    <option value="">-- Select a game script --</option>
+  </select>
+
+  <h3>Custom Script Tools:</h3>
+  <button id="browseFileBtn">Load Local .js File</button>
+  <input type="file" id="fileInput" accept=".js" />
+  <button id="clearScriptBtn">Clear Script</button>
+
+  <textarea id="scriptInput" placeholder="Write script to send to Switch here..."></textarea>
+  <br/>
+  <button id="sendScriptBtn">Send Script to Switch</button>
+  <button id="sendResetBtn">Send Reset Script to Switch</button>
+  <button id="clearLogBtn">Clear Log</button>
+
+  <h3>Switch Log:</h3>
+  <div id="log">Loading logs...</div>
+
+  <script>
+    let socket;
+    const statusEl = document.getElementById('connectionStatus');
+    const connectBtn = document.getElementById('connectBtn');
+    const sendScriptBtn = document.getElementById('sendScriptBtn');
+    const sendResetBtn = document.getElementById('sendResetBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const gameSelect = document.getElementById('gameSelect');
+    const browseFileBtn = document.getElementById('browseFileBtn');
+    const clearScriptBtn = document.getElementById('clearScriptBtn');
+    const fileInput = document.getElementById('fileInput');
+    const logDiv = document.getElementById('log');
+    const scriptInput = document.getElementById('scriptInput');
+
+    let connected = false;
+    let switchConnected = false;
+    let switchConfirmed = false;
+
+    function updateStatus(state) {
+      connected = state;
+      statusEl.textContent = state ? 'Connected' : 'Disconnected';
+      connectBtn.classList.toggle('connected', state);
+      connectBtn.classList.toggle('disconnected', !state);
+    }
+
+    function log(text) {
+      logDiv.textContent += text + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(text);
+    }
+
+    function connectToSwitch() {
+      if (socket && connected) {
+        socket.disconnect();
+        updateStatus(false);
+        return;
+      }
+
+      socket = io({ transports: ['polling'] });
+
+      socket.on('connect', () => {
+        updateStatus(true);
+        log("[Computer] Socket.io connected — waiting for Switch...");
+        fetchLogs();
+      });
+
+      socket.on('disconnect', () => {
+        updateStatus(false);
+        log("[Computer] Disconnected from Switch.");
+      });
+
+      socket.on('switch_connected', () => {
+        log("[Computer] Switch connected. Sending ready_for_switch...");
+        switchConnected = true;
+        switchConfirmed = false;
+        socket.emit('computer_ready');
+        connectBtn.textContent = "Awaiting Switch Confirmation...";
+        connectBtn.disabled = true;
+      });
+
+      socket.on('switch_confirmed', () => {
+        switchConfirmed = true;
+        log("[Computer] Switch confirmed connection!");
+        statusEl.textContent = 'Switch confirmed connection!';
+        connectBtn.textContent = "Connected!";
+        connectBtn.disabled = true;
+      });
+
+      socket.on('switch_cancelled', () => {
+        switchConfirmed = false;
+        log("[Computer] Switch cancelled connection.");
+        statusEl.textContent = 'Switch cancelled connection.';
+        connectBtn.textContent = "Connect to Switch";
+        connectBtn.disabled = false;
+      });
+
+      socket.on('switch_log', data => log(data.msg));
+      socket.on('server_message', data => log("[Switch]: " + data.msg));
+    }
+
+    connectBtn.addEventListener('click', connectToSwitch);
+
+    sendScriptBtn.addEventListener('click', () => {
+      if (!connected) return alert('Not connected to Switch!');
+      const script = scriptInput.value;
+      fetch('/run-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script })
+      }).then(res => res.json()).then(() => {
+        log("[Computer] Script sent.");
+      });
+    });
+
+    sendResetBtn.addEventListener('click', () => {
+      if (!connected) return alert('Not connected to Switch!');
+      fetch('/static/reset.js')
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to load reset.js');
+          return res.text();
+        })
+        .then(script => fetch('/run-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script })
+        }))
+        .then(res => res.json())
+        .then(() => log('[Computer] Reset script sent to Switch.'))
+        .catch(err => log('[Computer] Error sending reset script: ' + err.message));
+    });
+
+    clearLogBtn.addEventListener('click', () => {
+      fetch('/clear-log', { method: 'POST' })
+        .then(res => res.json())
+        .then(() => logDiv.textContent = '');
+    });
+
+    clearScriptBtn.addEventListener('click', () => {
+      scriptInput.value = '';
+      log('[Computer] Script cleared.');
+    });
+
+    browseFileBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        scriptInput.value = e.target.result;
+        log(`[Computer] Loaded local script: ${file.name}`);
+      };
+      reader.readAsText(file);
+    });
+
+    gameSelect.addEventListener('change', () => {
+      const selected = gameSelect.value;
+      if (!selected) return;
+      fetch(`/load-game/${selected}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.content) {
+            scriptInput.value = data.content;
+            log(`[Computer] Loaded script: ${selected}`);
+          }
+        });
+    });
+
+    function fetchLogs() {
+      fetch('/view-log')
+        .then(res => res.json())
+        .then(data => {
+          logDiv.textContent = data.logs || '';
+          logDiv.scrollTop = logDiv.scrollHeight;
+        });
+    }
+
+    function loadGameList() {
+      fetch('/list-games')
+        .then(res => res.json())
+        .then(files => {
+          files.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file;
+            option.textContent = file;
+            gameSelect.appendChild(option);
+          });
+        });
+    }
+
+    loadGameList();
+    setInterval(() => { if (connected) fetchLogs(); }, 3000);
+  </script>
+
+</body>
+</html>

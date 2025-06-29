@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Switch Side</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    body { font-family: monospace; background: #000; color: #0f0; padding: 1em; }
+    #status { margin-bottom: 1em; }
+    #output { white-space: pre-wrap; border: 1px solid #0f0; height: 300px; overflow-y: scroll; background: #111; padding: 0.5em; }
+  </style>
+</head>
+<body>
+
+  <div id="status">Connecting to server...</div>
+  <div id="output"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const outputEl = document.getElementById('output');
+
+    const socket = io({
+      transports: ['polling']
+    });
+
+    socket.on('connect', () => {
+      statusEl.textContent = 'Connected to server';
+      sendStatus('Switch connected');
+    });
+
+    socket.on('disconnect', () => {
+      statusEl.textContent = 'Disconnected from server';
+    });
+
+    socket.on('run_script', async (data) => {
+      try {
+        appendOutput("Running script...");
+        let result = await eval(`(async () => { ${data.script} })()`);
+        appendOutput("Script executed. Result: " + (result === undefined ? "undefined" : result));
+        logToServer("[Switch Log] Script executed successfully: " + (result === undefined ? "undefined" : result));
+      } catch (err) {
+        appendOutput("Script error: " + err.message);
+        logToServer("[Switch Log] Script execution error: " + err.message);
+      }
+    });
+
+    socket.on('reload_page', () => {
+      appendOutput("Reloading page as requested...");
+      reloadPage();
+    });
+
+    // Append text to output box and scroll down
+    function appendOutput(text) {
+      outputEl.textContent += text + "\n";
+      outputEl.scrollTop = outputEl.scrollHeight;
+    }
+
+    function sendStatus(msg) {
+      socket.emit('switch_status', { msg });
+    }
+
+    async function logToServer(msg) {
+      try {
+        await fetch('/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: msg
+        });
+      } catch (e) {
+        appendOutput("Failed to log to server: " + e.message);
+      }
+    }
+
+    function reloadPage() {
+      location.reload();
+    }
+
+    window.onerror = function(message, source, lineno, colno, error) {
+      appendOutput("Window error detected: " + message);
+      logToServer("[Switch Log] Window error detected: " + message);
+      setTimeout(reloadPage, 1000);
+      return false;
+    };
+
+    window.onbeforeunload = function(e) {
+      appendOutput("Window beforeunload event triggered");
+      logToServer("[Switch Log] Window beforeunload triggered");
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        appendOutput("Page became hidden - possible user left browser");
+        logToServer("[Switch Log] Page visibility changed to hidden");
+      }
+    });
+
+    setInterval(() => {
+      if (socket.connected) {
+        socket.emit('ping', { ts: Date.now() });
+      }
+    }, 15000);
+
+  </script>
+
+</body>
+</html>
