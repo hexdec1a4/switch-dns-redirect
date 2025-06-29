@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>Switch Side</title>
-  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -69,9 +68,9 @@
 <body>
 
 <canvas id="clockCanvas" width="250" height="250"></canvas>
-<div id="statusText">Socket: Not connected</div>
+<div id="statusText">Status: Ready</div>
 
-<div id="connectPrompt">
+<div id="connectPrompt" style="display:none;">
   <div>Computer wants to connect. Connect?</div>
   <button id="connectBtn">Connect</button>
   <button id="cancelBtn">Cancel</button>
@@ -79,8 +78,6 @@
 
 <script>
 (() => {
-  const socket = io({ transports: ['polling'] });
-
   const clockCanvas = document.getElementById('clockCanvas');
   const statusText = document.getElementById('statusText');
   const connectPrompt = document.getElementById('connectPrompt');
@@ -93,60 +90,23 @@
   clockScript.onload = () => window.clockStart && window.clockStart();
   document.head.appendChild(clockScript);
 
-  let connected = false;
-  let computerReady = false;
+  // Since no socket.io, just show ready status
+  statusText.textContent = 'Status: Ready';
+
+  // Hide connect prompt buttons, no connection logic
+  connectPrompt.style.display = 'none';
 
   connectBtn.onclick = () => {
-    socket.emit('switch_confirmed');
+    // No socket to emit, just simulate UI response
     statusText.textContent = 'Connection confirmed. Ready!';
     connectPrompt.style.display = 'none';
     if (window.clockStop) window.clockStop();
   };
 
   cancelBtn.onclick = () => {
-    socket.emit('switch_cancelled');
     statusText.textContent = 'Connection cancelled.';
     connectPrompt.style.display = 'none';
   };
-
-  socket.on('connect', () => {
-    connected = true;
-    statusText.textContent = 'Socket: Connected, waiting for computer...';
-    socket.emit('switch_connected');
-  });
-
-  socket.on('disconnect', () => {
-    connected = false;
-    computerReady = false;
-    statusText.textContent = 'Socket: Disconnected';
-    connectPrompt.style.display = 'none';
-  });
-
-  socket.on('computer_ready', () => {
-    if (!connected) return;
-    computerReady = true;
-    statusText.textContent = 'Computer connected. Awaiting your confirmation...';
-    connectPrompt.style.display = 'flex';
-  });
-
-  socket.on('run_script', async (data) => {
-    try {
-      eval(data.script);
-      await fetch('/confirm-load', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ success: true, message: 'Script executed' })
-      });
-      socket.emit('switch_confirmed');
-    } catch (e) {
-      await fetch('/confirm-load', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ success: false, message: e.message })
-      });
-      socket.emit('switch_cancelled');
-    }
-  });
 
   // Load menu.js script on pressing A + DPadUp simultaneously
   let keysPressed = new Set();
@@ -162,7 +122,7 @@
     script.onload = () => {
       console.log('menu.js loaded');
       if (window.initMenu) {
-        window.initMenu(socket, {
+        window.initMenu(null, {
           onMenuOpen: () => {
             menuOpen = true;
             console.log('Menu opened');

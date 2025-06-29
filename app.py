@@ -16,7 +16,6 @@ GAMES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'games')
 
 clients = {
     'switch': None,
-    'computer': None
 }
 
 @app.route('/')
@@ -30,15 +29,12 @@ def index():
         resp.headers['Expires'] = '0'
         return resp
     else:
-        return render_template('computer.html')
+        # For now, serve the switch.html or a simple page as fallback
+        return render_template('switch.html')
 
 @app.route('/switch')
 def switch():
     return render_template('switch.html')
-
-@app.route('/computer')
-def computer():
-    return render_template('computer.html')
 
 @app.route('/list-games')
 def list_games():
@@ -108,12 +104,7 @@ def confirm_load():
     except Exception as e:
         print(f"[Error] Writing to log file: {e}")
 
-    # Forward confirmation to computer client via socketio
-    if clients['computer']:
-        if success:
-            socketio.emit('switch_confirmed', {'message': message}, room=clients['computer'])
-        else:
-            socketio.emit('switch_cancelled', {'message': message}, room=clients['computer'])
+    # Since computer side is removed, no forwarding of confirmation here
 
     return jsonify({'received': True})
 
@@ -125,45 +116,17 @@ def handle_connect():
         clients['switch'] = sid
         print("[Switch] Connected")
     else:
-        clients['computer'] = sid
-        print("[Computer] Connected")
+        print("[Unknown Client] Connected, ignoring")
 
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
-    if clients['switch'] == sid:
+    if clients.get('switch') == sid:
         print("[Switch] Disconnected")
         clients['switch'] = None
-        if clients['computer']:
-            socketio.emit('disconnect', room=clients['computer'])
-    elif clients['computer'] == sid:
-        print("[Computer] Disconnected")
-        clients['computer'] = None
-        if clients['switch']:
-            socketio.emit('disconnect', room=clients['switch'])
-
-@socketio.on('switch_connected')
-def switch_connected():
-    if clients['computer']:
-        socketio.emit('switch_connected', room=clients['computer'])
-
-@socketio.on('computer_ready')
-def computer_ready():
-    if clients['switch']:
-        socketio.emit('computer_ready', room=clients['switch'])
-
-@socketio.on('switch_confirmed')
-def switch_confirmed():
-    if clients['computer']:
-        socketio.emit('switch_confirmed', room=clients['computer'])
-
-@socketio.on('switch_cancelled')
-def switch_cancelled():
-    if clients['computer']:
-        socketio.emit('switch_cancelled', room=clients['computer'])
 
 if __name__ == '__main__':
     # Use port from environment variable or default to 5000
     port = int(os.environ.get('PORT', 5000))
     # Turn off debug for production
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
