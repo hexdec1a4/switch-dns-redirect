@@ -4,7 +4,10 @@ from flask_socketio import SocketIO, emit
 import logging
 import traceback
 
-app = Flask(__name__)
+# Explicitly define template folder path
+template_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'templates')
+app = Flask(__name__, template_folder=template_dir)
+
 # Use async_mode='threading' to avoid eventlet SSL issues on Python 3.13
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
@@ -36,7 +39,7 @@ def index():
             return resp
         else:
             return render_template('switch.html')
-    except Exception as e:
+    except Exception:
         app.logger.error("Error in index route:\n%s", traceback.format_exc())
         return "Internal Server Error", 500
 
@@ -44,7 +47,7 @@ def index():
 def switch():
     try:
         return render_template('switch.html')
-    except Exception as e:
+    except Exception:
         app.logger.error("Error loading switch.html:\n%s", traceback.format_exc())
         return "Internal Server Error", 500
 
@@ -54,7 +57,7 @@ def list_games():
         files = [f for f in os.listdir(GAMES_FOLDER) if f.endswith('.js')]
         app.logger.debug(f"[list-games] Found scripts: {files}")
         return jsonify(files)
-    except Exception as e:
+    except Exception:
         app.logger.error("[list-games] Error:\n%s", traceback.format_exc())
         return jsonify([]), 500
 
@@ -72,7 +75,7 @@ def load_game(filename):
             content = f.read()
 
         return jsonify({'content': content})
-    except Exception as e:
+    except Exception:
         app.logger.error("[load-game] Error:\n%s", traceback.format_exc())
         return jsonify({'error': 'Internal Server Error'}), 500
 
@@ -85,7 +88,7 @@ def run_script():
             socketio.emit('run_script', {'script': script}, room=clients['switch'])
             return jsonify({'status': 'sent'})
         return jsonify({'status': 'no_switch_connected'}), 400
-    except Exception as e:
+    except Exception:
         app.logger.error("[run-script] Error:\n%s", traceback.format_exc())
         return jsonify({'status': 'error'}), 500
 
@@ -95,7 +98,7 @@ def view_log():
         with open('switch.log', 'r') as f:
             logs = f.read()
         return jsonify({'logs': logs})
-    except Exception as e:
+    except Exception:
         app.logger.error("[view-log] Error:\n%s", traceback.format_exc())
         return jsonify({'logs': ''})
 
@@ -105,7 +108,7 @@ def clear_log():
         with open('switch.log', 'w') as f:
             f.write('')
         return jsonify({'cleared': True})
-    except Exception as e:
+    except Exception:
         app.logger.error("[clear-log] Error:\n%s", traceback.format_exc())
         return jsonify({'cleared': False}), 500
 
@@ -124,7 +127,7 @@ def confirm_load():
             f.write(log_entry)
 
         return jsonify({'received': True})
-    except Exception as e:
+    except Exception:
         app.logger.error("[confirm-load] Error:\n%s", traceback.format_exc())
         return jsonify({'received': False}), 500
 
@@ -147,5 +150,5 @@ def handle_disconnect():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    # Enable debug=True here for Flask built-in debugger, if you want
+    # debug=True enables Flask's built-in debugger (disable in production)
     socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)
