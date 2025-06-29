@@ -4,7 +4,8 @@ from flask_socketio import SocketIO, emit
 import logging
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Use async_mode='threading' to avoid eventlet SSL issues on Python 3.13
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Disable Werkzeug logs to keep console cleaner
 log = logging.getLogger('werkzeug')
